@@ -8,38 +8,65 @@ from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
 from statsmodels.tsa.arima.model import ARIMA
 from statsmodels.tsa.statespace.sarimax import SARIMAX
 
-from sklearn.metrics import mean_absolute_error
-from sklearn.metrics import mean_squared_error
+from sklearn.metrics import (
+    mean_absolute_error,
+    mean_squared_error
+)
 
-# ==========================================
+# =========================================
 # PAGE CONFIG
-# ==========================================
+# =========================================
 
 st.set_page_config(
-    page_title="ChatGPT Popularity Dashboard",
+    page_title="ChatGPT Forecast Dashboard",
+    page_icon="🚀",
     layout="wide"
 )
 
-# ==========================================
+# =========================================
+# CUSTOM CSS
+# =========================================
+
+st.markdown("""
+<style>
+
+.main {
+    background-color: #0E1117;
+}
+
+h1, h2, h3 {
+    color: white;
+}
+
+[data-testid="stSidebar"] {
+    background-color: #161A2D;
+}
+
+.metric-box {
+    background-color: #1E1E2E;
+    padding: 20px;
+    border-radius: 15px;
+    text-align: center;
+}
+
+</style>
+""", unsafe_allow_html=True)
+
+# =========================================
 # TITLE
-# ==========================================
+# =========================================
 
 st.title("🚀 ChatGPT Popularity Forecast Dashboard")
 
 st.markdown("""
-This dashboard analyzes and forecasts ChatGPT popularity
-using ARIMA, SARIMA, and LSTM models.
+### AI-Based Forecasting Using ARIMA, SARIMA, and LSTM Models
 """)
 
-# ==========================================
+# =========================================
 # LOAD DATA
-# ==========================================
+# =========================================
 
 df = pd.read_csv("small_data.csv")
-
-# ==========================================
-# DATE COLUMN
-# ==========================================
 
 date_col = df.columns[0]
 value_col = df.columns[1]
@@ -48,54 +75,118 @@ df[date_col] = pd.to_datetime(df[date_col])
 
 df.set_index(date_col, inplace=True)
 
-# ==========================================
-# SHOW DATA
-# ==========================================
+# =========================================
+# SIDEBAR
+# =========================================
 
-st.subheader("📄 Raw Dataset")
+st.sidebar.title("⚙️ Forecast Controls")
+
+model_choice = st.sidebar.selectbox(
+    "Choose Model",
+    ["ARIMA", "SARIMA"]
+)
+
+p = st.sidebar.slider(
+    "AR Order (p)",
+    0,
+    5,
+    2
+)
+
+d = st.sidebar.slider(
+    "Differencing (d)",
+    0,
+    2,
+    1
+)
+
+q = st.sidebar.slider(
+    "MA Order (q)",
+    0,
+    5,
+    1
+)
+
+forecast_steps = st.sidebar.slider(
+    "Forecast Days",
+    7,
+    60,
+    24
+)
+
+st.sidebar.markdown("---")
+
+st.sidebar.info("""
+📌 Dashboard Features
+
+✔ Forecasting  
+✔ ACF/PACF  
+✔ Model Evaluation  
+✔ Future Prediction  
+✔ Interactive Parameters
+""")
+
+# =========================================
+# RAW DATA
+# =========================================
+
+st.header("📄 Raw Dataset")
 
 st.dataframe(df.head())
 
-# ==========================================
-# TIME SERIES PLOT
-# ==========================================
+# =========================================
+# TIME SERIES
+# =========================================
 
-st.subheader("📈 Time Series Plot")
+st.header("📈 Time Series Visualization")
 
 fig, ax = plt.subplots(figsize=(14,5))
 
-ax.plot(df.index, df[value_col])
+ax.plot(
+    df.index,
+    df[value_col],
+    color="cyan"
+)
 
 ax.set_xlabel("Date")
 ax.set_ylabel("Popularity")
 
 st.pyplot(fig)
 
-# ==========================================
-# ADF TEST
-# ==========================================
+# =========================================
+# STATIONARITY
+# =========================================
 
-st.subheader("🧪 Stationarity Test (ADF)")
+st.header("🧪 Stationarity Test")
 
 adf_result = adfuller(df[value_col])
 
-st.write(f"ADF Statistic: {adf_result[0]:.4f}")
-st.write(f"P-value: {adf_result[1]:.4f}")
-
-if adf_result[1] < 0.05:
-    st.success("Data is stationary")
-else:
-    st.warning("Data is not stationary")
-
-# ==========================================
-# ACF & PACF
-# ==========================================
-
-st.subheader("📊 ACF and PACF")
-
 col1, col2 = st.columns(2)
 
-with col1:
+col1.metric(
+    "ADF Statistic",
+    f"{adf_result[0]:.4f}"
+)
+
+col2.metric(
+    "P-Value",
+    f"{adf_result[1]:.4f}"
+)
+
+if adf_result[1] < 0.05:
+    st.success("✅ Data is Stationary")
+else:
+    st.warning("⚠️ Data is Not Stationary")
+
+# =========================================
+# ACF PACF
+# =========================================
+
+st.header("📊 ACF & PACF")
+
+c1, c2 = st.columns(2)
+
+with c1:
 
     fig1, ax1 = plt.subplots(figsize=(6,4))
 
@@ -103,7 +194,7 @@ with col1:
 
     st.pyplot(fig1)
 
-with col2:
+with c2:
 
     fig2, ax2 = plt.subplots(figsize=(6,4))
 
@@ -111,28 +202,9 @@ with col2:
 
     st.pyplot(fig2)
 
-# ==========================================
-# SIDEBAR
-# ==========================================
-
-st.sidebar.header("⚙️ Model Parameters")
-
-p = st.sidebar.slider("AR Order (p)", 0, 5, 2)
-
-d = st.sidebar.slider("Differencing Order (d)", 0, 2, 1)
-
-q = st.sidebar.slider("MA Order (q)", 0, 5, 1)
-
-forecast_steps = st.sidebar.slider(
-    "Forecast Steps",
-    7,
-    60,
-    24
-)
-
-# ==========================================
+# =========================================
 # TRAIN TEST SPLIT
-# ==========================================
+# =========================================
 
 train_size = int(len(df) * 0.8)
 
@@ -140,9 +212,9 @@ train = df.iloc[:train_size]
 
 test = df.iloc[train_size:]
 
-# ==========================================
-# ARIMA MODEL
-# ==========================================
+# =========================================
+# ARIMA
+# =========================================
 
 st.header("🌀 ARIMA Forecasting")
 
@@ -157,54 +229,69 @@ arima_forecast = arima_fit.forecast(
     steps=len(test)
 )
 
-# ==========================================
+# =========================================
+# SAFE MAPE
+# =========================================
+
+actual_values = test[value_col].values
+
+forecast_values = arima_forecast.values
+
+mask = actual_values != 0
+
+# =========================================
 # ARIMA METRICS
-# ==========================================
+# =========================================
 
 arima_mae = mean_absolute_error(
-    test[value_col],
-    arima_forecast
+    actual_values,
+    forecast_values
 )
 
 arima_rmse = np.sqrt(
     mean_squared_error(
-        test[value_col],
-        arima_forecast
+        actual_values,
+        forecast_values
     )
 )
-
-# SAFE MAPE
-
-non_zero_actual = test[value_col] != 0
 
 arima_mape = np.mean(
     np.abs(
         (
-            test[value_col][non_zero_actual]
-            - arima_forecast[non_zero_actual]
+            actual_values[mask]
+            - forecast_values[mask]
         )
         /
-        test[value_col][non_zero_actual]
+        actual_values[mask]
     )
 ) * 100
 
-# ==========================================
-# ARIMA METRICS DISPLAY
-# ==========================================
+# =========================================
+# ARIMA DISPLAY
+# =========================================
 
 st.subheader("📌 ARIMA Evaluation")
 
-c1, c2, c3 = st.columns(3)
+m1, m2, m3 = st.columns(3)
 
-c1.metric("MAE", f"{arima_mae:.2f}")
+m1.metric(
+    "MAE",
+    f"{arima_mae:.2f}"
+)
 
-c2.metric("RMSE", f"{arima_rmse:.2f}")
+m2.metric(
+    "RMSE",
+    f"{arima_rmse:.2f}"
+)
 
-c3.metric("MAPE", f"{arima_mape:.2f}%")
+m3.metric(
+    "MAPE",
+    f"{arima_mape:.2f}%"
+)
 
-# ==========================================
+# =========================================
 # ARIMA PLOT
-# ==========================================
+# =========================================
 
 st.subheader("📉 ARIMA Forecast vs Actual")
 
@@ -232,9 +319,9 @@ ax3.legend()
 
 st.pyplot(fig3)
 
-# ==========================================
-# SARIMA MODEL
-# ==========================================
+# =========================================
+# SARIMA
+# =========================================
 
 st.header("🌟 SARIMA Forecasting")
 
@@ -244,56 +331,69 @@ sarima_model = SARIMAX(
     seasonal_order=(1,1,1,12)
 )
 
-sarima_fit = sarima_model.fit(disp=False)
+sarima_fit = sarima_model.fit(
+    disp=False
+)
 
 sarima_forecast = sarima_fit.forecast(
     steps=len(test)
 )
 
-# ==========================================
+# =========================================
 # SARIMA METRICS
-# ==========================================
+# =========================================
+
+forecast_values2 = sarima_forecast.values
 
 sarima_mae = mean_absolute_error(
-    test[value_col],
-    sarima_forecast
+    actual_values,
+    forecast_values2
 )
 
 sarima_rmse = np.sqrt(
     mean_squared_error(
-        test[value_col],
-        sarima_forecast
+        actual_values,
+        forecast_values2
     )
 )
 
 sarima_mape = np.mean(
     np.abs(
         (
-            test[value_col][non_zero_actual]
-            - sarima_forecast[non_zero_actual]
+            actual_values[mask]
+            - forecast_values2[mask]
         )
         /
-        test[value_col][non_zero_actual]
+        actual_values[mask]
     )
 ) * 100
 
-# ==========================================
+# =========================================
 # SARIMA DISPLAY
-# ==========================================
+# =========================================
 
 st.subheader("📌 SARIMA Evaluation")
 
-c4, c5, c6 = st.columns(3)
+s1, s2, s3 = st.columns(3)
 
-c4.metric("MAE", f"{sarima_mae:.2f}")
+s1.metric(
+    "MAE",
+    f"{sarima_mae:.2f}"
+)
 
-c5.metric("RMSE", f"{sarima_rmse:.2f}")
+s2.metric(
+    "RMSE",
+    f"{sarima_rmse:.2f}"
+)
 
-c6.metric("MAPE", f"{sarima_mape:.2f}%")
+s3.metric(
+    "MAPE",
+    f"{sarima_mape:.2f}%"
+)
 
-# ==========================================
+# =========================================
 # SARIMA PLOT
-# ==========================================
+# =========================================
 
 st.subheader("📉 SARIMA Forecast vs Actual")
 
@@ -321,35 +421,42 @@ ax4.legend()
 
 st.pyplot(fig4)
 
-# ==========================================
-# DUMMY LSTM RESULTS
-# ==========================================
-
-# Replace later with your real LSTM metrics
-
-lstm_mae = 320.55
-lstm_rmse = 450.22
-lstm_mape = 12.5
-
-# ==========================================
-# LSTM SECTION
-# ==========================================
+# =========================================
+# LSTM RESULTS
+# =========================================
 
 st.header("🤖 LSTM Forecasting")
 
-st.info("LSTM model results from notebook")
+# Replace later with real values
 
-c7, c8, c9 = st.columns(3)
+lstm_mae = 320.55
+lstm_rmse = 450.22
+lstm_mape = 12.50
 
-c7.metric("MAE", f"{lstm_mae:.2f}")
+l1, l2, l3 = st.columns(3)
 
-c8.metric("RMSE", f"{lstm_rmse:.2f}")
+l1.metric(
+    "MAE",
+    f"{lstm_mae:.2f}"
+)
 
-c9.metric("MAPE", f"{lstm_mape:.2f}%")
+l2.metric(
+    "RMSE",
+    f"{lstm_rmse:.2f}"
+)
 
-# ==========================================
-# MODEL COMPARISON
-# ==========================================
+l3.metric(
+    "MAPE",
+    f"{lstm_mape:.2f}%"
+)
+
+st.info("""
+LSTM metrics are imported from the notebook model.
+""")
+
+# =========================================
+# COMPARISON TABLE
+# =========================================
 
 st.header("🏆 Models Comparison")
 
@@ -382,23 +489,26 @@ comparison_df = pd.DataFrame({
 
 st.dataframe(comparison_df)
 
-# ==========================================
+# =========================================
 # BEST MODEL
-# ==========================================
+# =========================================
 
 best_model = comparison_df.loc[
     comparison_df["RMSE"].idxmin()
 ]
 
 st.success(
-    f"🏆 Best Model: "
-    f"{best_model['Model']} "
-    f"with RMSE = {best_model['RMSE']:.2f}"
+    f"""
+🏆 Best Performing Model:
+{best_model['Model']}
+
+RMSE = {best_model['RMSE']:.2f}
+"""
 )
 
-# ==========================================
+# =========================================
 # BAR CHART
-# ==========================================
+# =========================================
 
 st.subheader("📊 RMSE Comparison")
 
@@ -406,15 +516,23 @@ st.bar_chart(
     comparison_df.set_index("Model")["RMSE"]
 )
 
-# ==========================================
+# =========================================
 # FUTURE FORECAST
-# ==========================================
+# =========================================
 
 st.header("🔮 Future Forecast")
 
-future_forecast = arima_fit.forecast(
-    steps=forecast_steps
-)
+if model_choice == "ARIMA":
+
+    future_forecast = arima_fit.forecast(
+        steps=forecast_steps
+    )
+
+else:
+
+    future_forecast = sarima_fit.forecast(
+        steps=forecast_steps
+    )
 
 future_dates = pd.date_range(
     start=df.index[-1],
@@ -423,15 +541,17 @@ future_dates = pd.date_range(
 )[1:]
 
 future_df = pd.DataFrame({
+
     "Date": future_dates,
+
     "Forecast": future_forecast
 })
 
 st.dataframe(future_df)
 
-# ==========================================
+# =========================================
 # FUTURE PLOT
-# ==========================================
+# =========================================
 
 fig5, ax5 = plt.subplots(figsize=(14,5))
 
@@ -444,10 +564,23 @@ ax5.plot(
 ax5.plot(
     future_dates,
     future_forecast,
-    label="Future Forecast"
+    label="Forecast"
 )
 
 ax5.legend()
 
 st.pyplot(fig5)
+
+# =========================================
+# FINAL NOTE
+# =========================================
+
+st.markdown("---")
+
+st.markdown("""
+### ✅ Dashboard Completed Successfully
+
+This dashboard was developed for forecasting ChatGPT popularity
+using machine learning and time series models.
+""")
 
